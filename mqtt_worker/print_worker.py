@@ -2,6 +2,7 @@ from config import Config
 from worker import Worker
 from escpos import config
 from escpos.printer import Dummy
+from printer_util import PrinterUtil
 
 PRINT_TOPIC_ROOT = 'home/print/'
 PRINT_TOPIC_SUBSCRIBE = PRINT_TOPIC_ROOT + '+'
@@ -14,11 +15,7 @@ class PrintWorker(Worker):
 
         self._printer_config = config.Config()
         self._printer = self._printer_config.printer()
-
-    def _get_dummy_printer(self, font_size=1):
-        dummy = Dummy()
-        dummy.set('left', width=font_size, height=font_size, custom_size=True)
-        return dummy
+        self._pu = PrinterUtil(self._printer)
 
     def on_connect(self, client, userdata, flags):
         super().on_connect(client, userdata, flags)
@@ -41,6 +38,7 @@ class PrintWorker(Worker):
                 result = self._print_qr(payload)
                 client.publish(msg.topic + '/reply', payload=result, qos=2)
 
+    """
     # 20210130 今天 .text() 方法打不出东西
     # 安装新版本：
     #     sudo pip3 install python-escpos --pre
@@ -57,14 +55,28 @@ class PrintWorker(Worker):
             return 'ok'
         except:
             return 'failed'
+    """
+
+    def _print_text(self, content, font_size=1):
+        try:
+            self._pu.init()
+            self._pu.font_size(font_size, font_size)
+            self._pu.text(content.encode('GB18030'))
+            self._printer.ln(3)
+            self._pu.init()
+            return 'ok'
+        except:
+            return 'failed'
 
     def _print_qr(self, content):
         try:
             if len(content.encode('utf-8')) > MAX_QR_CODE_CHAR_COUNT:
                 return 'too long'
             else:
+                self._pu.init()
                 self._printer.qr(content, size=5)
                 self._printer.text('\n\n')
+                self._pu.init()
                 return 'ok'
         except:
             return 'failed'
